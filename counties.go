@@ -18,12 +18,17 @@ const (
 	CountyGOBFile  = "county_geo.gob.gz"
 )
 
+// Point represents Lat,Lon
 type Point [2]float64
+
+// Rect is the min and max verticies of a bounding box
 type Rect [2]Point
+
+// Points is a collection of geographic locations
 type Points []Point
 
-// CountyLoad is ready for consumption
-type CountyLoad struct {
+// CountyGeo is ready for consumption
+type CountyGeo struct {
 	GeoID int    `json:"geoid"`
 	Name  string `json:"name"`
 	Full  string `json:"fullname"`
@@ -91,7 +96,7 @@ func toGeoPoly(pts Points) *geo.Polygon {
 }
 
 // InitCountyLookup prepares data for searching for counties
-func InitCountyLookup(counties []CountyLoad) {
+func InitCountyLookup(counties []CountyGeo) {
 	for _, county := range counties {
 		countyLookupPolygons[county.GeoID] = append(countyLookupPolygons[county.GeoID], toGeoPoly(county.Poly))
 		countyLookupBBoxen.Insert(county.BBox[0], county.BBox[1], county.GeoID)
@@ -102,7 +107,7 @@ func InitCountyLookup(counties []CountyLoad) {
 // LoadCachedCountyGeo uses GOB encoded geodata
 // to build county lookup functions
 func LoadCachedCountyGeo(filename string) error {
-	var counties []CountyLoad
+	var counties []CountyGeo
 	err := GobLoad(filename, &counties)
 	if err != nil {
 		return err
@@ -113,7 +118,7 @@ func LoadCachedCountyGeo(filename string) error {
 
 // LoadCountyJSON loads the json dump file from the data as prepared using
 // https://github.com/paulstuart/counties
-func LoadCountyJSON(filename string) ([]CountyLoad, error) {
+func LoadCountyJSON(filename string) ([]CountyGeo, error) {
 	f, err := os.Open(filename)
 	if err != nil {
 		return nil, err
@@ -123,7 +128,7 @@ func LoadCountyJSON(filename string) ([]CountyLoad, error) {
 	if err := dec.Decode(&raw); err != nil {
 		return nil, err
 	}
-	loaded := make([]CountyLoad, len(raw))
+	loaded := make([]CountyGeo, len(raw))
 	for i, src := range raw {
 		load, err := src.Load()
 		if err != nil {
@@ -136,12 +141,12 @@ func LoadCountyJSON(filename string) ([]CountyLoad, error) {
 }
 
 // Load converts the serialize geodata into usable data
-func (c countyRawJSON) Load() (CountyLoad, error) {
+func (c countyRawJSON) Load() (CountyGeo, error) {
 	geoid, err := strconv.Atoi(c.GeoID)
 	if err != nil {
-		return CountyLoad{}, err
+		return CountyGeo{}, err
 	}
-	load := CountyLoad{
+	load := CountyGeo{
 		GeoID: geoid,
 		Name:  c.Name,
 		Full:  c.Full,

@@ -17,8 +17,11 @@ func GobDump(filename string, obj interface{}) error {
 		return err
 	}
 	w := gzip.NewWriter(f)
-	enc := gob.NewEncoder(w)
-	enc.Encode(obj)
+	err = gob.NewEncoder(w).Encode(obj)
+	if err != nil {
+		w.Close()
+		return fmt.Errorf("error encoding to %q -- %w", filename, err)
+	}
 	if err := w.Close(); err != nil {
 		f.Close()
 		return err
