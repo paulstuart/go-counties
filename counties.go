@@ -21,11 +21,11 @@ const (
 // Point represents Lat,Lon
 type Point [2]float64
 
-// Rect is the min and max verticies of a bounding box
-type Rect [2]Point
-
 // Points is a collection of geographic locations
 type Points []Point
+
+// Rect is the min and max verticies of a bounding box
+type Rect [2]Point
 
 // CountyGeo is ready for consumption
 type CountyGeo struct {
@@ -44,8 +44,8 @@ type Location struct {
 	State    string
 }
 
-// CountyJSON represents data as generated from github.com/paulstuart/counties
-
+// countyRawJSON represents data as generated from github.com/paulstuart/counties
+// TODO: let's add centroids
 type countyRawJSON struct {
 	GeoID   string `json:"geoid"`
 	Full    string `json:"fullname"`
@@ -65,8 +65,12 @@ type CountyMeta struct {
 }
 
 var (
+	// polygons are indexed by GeoID
 	countyLookupPolygons = make(map[int][]*geo.Polygon)
-	CountyLookupMeta     = make(map[int]Location)
+
+	// locations are indexed by GeoID
+	CountyLookupMeta = make(map[int]Location)
+
 	// countyLookupBBoxen contains all the bounding boxes for each US county
 	// the bboxen are linked to a GeoID, and then the possible hits
 	// are confirmed in countyLookupPolygons
@@ -95,11 +99,37 @@ func toGeoPoly(pts Points) *geo.Polygon {
 	return geo.NewPolygon(points)
 }
 
+func boundingBox(pp Points) [2]Point {
+	var maxX, maxY, minX, minY float64
+
+	for _, pt := range pp {
+		if pt[0] > maxX || maxX == 0.0 {
+			maxX = pt[0]
+		}
+		if pt[1] > maxY || maxY == 0.0 {
+			maxY = pt[1]
+		}
+		if pt[0] < minX || minX == 0.0 {
+			minX = pt[0]
+		}
+		if pt[1] < minY || minY == 0.0 {
+			minY = pt[1]
+		}
+	}
+
+	return [2]Point{
+		{minX, minY},
+		{maxX, maxY},
+	}
+}
+
 // InitCountyLookup prepares data for searching for counties
 func InitCountyLookup(counties []CountyGeo) {
 	for _, county := range counties {
+		// recalculate the bounding box, as the sourced version is not accurate enough
+		bbox := boundingBox(county.Poly)
 		countyLookupPolygons[county.GeoID] = append(countyLookupPolygons[county.GeoID], toGeoPoly(county.Poly))
-		countyLookupBBoxen.Insert(county.BBox[0], county.BBox[1], county.GeoID)
+		countyLookupBBoxen.Insert(bbox[0], bbox[1], county.GeoID)
 		CountyLookupMeta[county.GeoID] = Location{Name: county.Name, FullName: county.Full, State: county.State}
 	}
 }
@@ -135,7 +165,6 @@ func LoadCountyJSON(filename string) ([]CountyGeo, error) {
 			return nil, fmt.Errorf("failed for (%d/%d): %w", i+1, len(raw), err)
 		}
 		loaded[i] = load
-		//fmt.Printf("(%d/%d): %s\n", i+1, len(raw), src.GeoType)
 	}
 	return loaded, nil
 }
@@ -152,7 +181,7 @@ func (c countyRawJSON) Load() (CountyGeo, error) {
 		Full:  c.Full,
 		State: c.State,
 	}
-	// json source has bbox as 4 quadrants of box, but we just want min/max verticies
+
 	var polybox Points
 	if err := json.Unmarshal([]byte(c.BBox), &polybox); err != nil {
 		return load, fmt.Errorf("bbox geoid: %s -- %w", c.GeoID, err)
@@ -165,40 +194,42 @@ func (c countyRawJSON) Load() (CountyGeo, error) {
 		return load, fmt.Errorf("poly geoid: %s -- %w", c.GeoID, err)
 	}
 
-	load.BBox[0] = polybox[0]
-	load.BBox[1] = polybox[2]
-
+	load.BBox = boundingBox(load.Poly)
 	return load, nil
 }
 
 // FindCounty returns the county associated with the given location
 func FindCounty(lat, lon float64) (CountyMeta, error) {
-	// NOTE: the polygon coordinates are in form of lat,lon
-	pts := Point{lon, lat} //[2]float64{lon, lat}
-	//	fmt.Printf("Search (%v, %v)\n", pts, pts) // prints "PHX"
+	// NOTE: the polygon coordinates are in form of lon,lat
+	// TODO: unify that to lat,lon
+	pts := Point{lon, lat}
 	foundGeo := -1
+	var possible []int
+
 	countyLookupBBoxen.Search(pts, pts,
 		func(min, max [2]float64, value interface{}) bool {
 			id := value.(int)
-			polys := countyLookupPolygons[id]
+			polys, ok := countyLookupPolygons[id]
+			if !ok {
+				log.Println("no polygon for geoid:", id)
+				return true
+			}
 			for _, poly := range polys {
-				//fmt.Printf("GEOID: %d (%s) (%v)\n", id, geo.Name, geo.BBox) // prints "PHX"
-				//fmt.Printf("CENTER: (%5f,%5f)->(%5f,%5f): %f\n", lat, lon, min[1], min[0], distance)
-				//poly, ok := polygons[id]
-				if poly == nil {
-					log.Println("no polygon for geoid:", id)
-					return true
-				}
-				//in := MakePoint(lat, lon)
 				in := geo.NewPoint(lat, lon)
 				if poly.Contains(in) {
 					foundGeo = id
 					return false
 				}
+				possible = append(possible, id)
 			}
 			return true
 		})
 
+	// TODO: add centroids data and do triagulation if
+	//       no direct hit but multiple possible
+	if foundGeo == -1 && len(possible) == 1 {
+		foundGeo = possible[0]
+	}
 	location, ok := CountyLookupMeta[foundGeo]
 	if !ok {
 		return CountyMeta{}, fmt.Errorf("could not find county at (%5f,%5f)", lat, lon)
