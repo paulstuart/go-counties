@@ -37,6 +37,15 @@ type CountyGeo struct {
 	Poly  Points `json:"polygon"`
 }
 
+func (cg CountyGeo) Meta() CountyMeta {
+	return CountyMeta{
+		GeoID:    cg.GeoID,
+		County:   cg.Name,
+		Fullname: cg.Full,
+		State:    cg.State,
+	}
+}
+
 // Location is name and state of the county
 type Location struct {
 	Name     string
