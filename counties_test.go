@@ -16,11 +16,8 @@ import (
 
 const (
 	// Central & Grand, Alameda CA
-	//  37.77033688841509,-122.25697282612731
-
-	AlaLat   = 37.77033688841509
-	AlaLon   = -122.25697282612731
-	AlaGeoID = 6001
+	AlaLat, AlaLon = 37.77033688841509, -122.25697282612731
+	AlaGeoID       = 6001
 )
 
 var (
@@ -72,10 +69,12 @@ func TestLookup(t *testing.T) {
 		{AlaLat, AlaLon, "Alameda"},
 	}
 	for _, look := range lookups {
+		now := time.Now()
 		meta, err := FindCounty(look.lat, look.lon)
+		since := time.Since(now)
 		require.NoError(t, err)
 		assert.Equal(t, look.county, meta.County)
-		t.Log(meta)
+		t.Logf("Meta: %v, Elapsed: %s", meta, since)
 	}
 }
 

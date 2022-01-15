@@ -2,13 +2,12 @@ package counties
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
-	"log"
 	"os"
 	"strconv"
 
-	geo "github.com/kellydunn/golang-geo"
-	"github.com/tidwall/rtree"
+	"github.com/paulstuart/polygons"
 )
 
 const (
@@ -75,7 +74,7 @@ type CountyMeta struct {
 
 var (
 	// polygons are indexed by GeoID
-	countyLookupPolygons = make(map[int][]*geo.Polygon)
+	//countyLookupPolygons = make(map[int][]*geo.Polygon)
 
 	// locations are indexed by GeoID
 	CountyLookupMeta = make(map[int]Location)
@@ -83,7 +82,7 @@ var (
 	// countyLookupBBoxen contains all the bounding boxes for each US county
 	// the bboxen are linked to a GeoID, and then the possible hits
 	// are confirmed in countyLookupPolygons
-	countyLookupBBoxen rtree.RTree
+	finder polygons.Finder
 )
 
 /*
@@ -99,13 +98,13 @@ var (
 	which one actually contains that point.
 */
 
-func toGeoPoly(pts Points) *geo.Polygon {
-	points := make([]*geo.Point, len(pts))
-	for i, pt := range pts {
-		points[i] = geo.NewPoint(pt[1], pt[0])
+// TODO: alias ppoints
+func (pp Points) convert() polygons.PPoints {
+	pgp := make(polygons.PPoints, len(pp))
+	for i, pt := range pp {
+		pgp[i] = polygons.Pair(pt)
 	}
-
-	return geo.NewPolygon(points)
+	return pgp
 }
 
 func boundingBox(pp Points) [2]Point {
@@ -134,11 +133,9 @@ func boundingBox(pp Points) [2]Point {
 
 // InitCountyLookup prepares data for searching for counties
 func InitCountyLookup(counties []CountyGeo) {
+	finder = *polygons.NewFinder()
 	for _, county := range counties {
-		// recalculate the bounding box, as the sourced version is not accurate enough
-		bbox := boundingBox(county.Poly)
-		countyLookupPolygons[county.GeoID] = append(countyLookupPolygons[county.GeoID], toGeoPoly(county.Poly))
-		countyLookupBBoxen.Insert(bbox[0], bbox[1], county.GeoID)
+		finder.Add(county.GeoID, county.Poly.convert())
 		CountyLookupMeta[county.GeoID] = Location{Name: county.Name, FullName: county.Full, State: county.State}
 	}
 }
@@ -207,49 +204,25 @@ func (c countyRawJSON) Load() (CountyGeo, error) {
 	return load, nil
 }
 
+var ErrNotFound = errors.New("not found")
+
 // FindCounty returns the county associated with the given location
 func FindCounty(lat, lon float64) (CountyMeta, error) {
 	// NOTE: the polygon coordinates are in form of lon,lat
 	// TODO: unify that to lat,lon
 	pts := Point{lon, lat}
-	foundGeo := -1
-	var possible []int
-
-	countyLookupBBoxen.Search(pts, pts,
-		func(min, max [2]float64, value interface{}) bool {
-			id := value.(int)
-			polys, ok := countyLookupPolygons[id]
-			if !ok {
-				log.Println("no polygon for geoid:", id)
-				return true
-			}
-			for _, poly := range polys {
-				in := geo.NewPoint(lat, lon)
-				if poly.Contains(in) {
-					foundGeo = id
-					return false
-				}
-				possible = append(possible, id)
-			}
-			return true
-		})
-
-	// TODO: add centroids data and do triagulation if
-	//       no direct hit but multiple possible
-	if foundGeo == -1 && len(possible) == 1 {
-		foundGeo = possible[0]
+	idx := finder.Search(pts)
+	if idx < 0 {
+		return CountyMeta{}, ErrNotFound
 	}
-	location, ok := CountyLookupMeta[foundGeo]
-	if !ok {
-		return CountyMeta{}, fmt.Errorf("could not find county at (%5f,%5f)", lat, lon)
-	}
-
+	location := CountyLookupMeta[idx]
 	meta := CountyMeta{
-		GeoID:    foundGeo,
+		GeoID:    idx,
+		State:    location.State,
 		County:   location.Name,
 		Fullname: location.FullName,
-		State:    location.State,
 	}
+
 	return meta, nil
 }
 
