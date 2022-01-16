@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"strconv"
 
@@ -18,13 +19,15 @@ const (
 )
 
 // Point represents Lat,Lon
-type Point [2]float64
+//type Point [2]float64
+type Point = polygons.Pair
 
 // Points is a collection of geographic locations
-type Points []Point
+//type Points []Point
+type Points = polygons.PPoints
 
 // Rect is the min and max verticies of a bounding box
-type Rect [2]Point
+type Rect = polygons.BBox //[2]Point
 
 // CountyGeo is ready for consumption
 type CountyGeo struct {
@@ -98,6 +101,7 @@ var (
 	which one actually contains that point.
 */
 
+/*
 // TODO: alias ppoints
 func (pp Points) convert() polygons.PPoints {
 	pgp := make(polygons.PPoints, len(pp))
@@ -106,6 +110,7 @@ func (pp Points) convert() polygons.PPoints {
 	}
 	return pgp
 }
+*/
 
 func boundingBox(pp Points) [2]Point {
 	var maxX, maxY, minX, minY float64
@@ -135,7 +140,7 @@ func boundingBox(pp Points) [2]Point {
 func InitCountyLookup(counties []CountyGeo) {
 	finder = *polygons.NewFinder()
 	for _, county := range counties {
-		finder.Add(county.GeoID, county.Poly.convert())
+		finder.Add(county.GeoID, county.Poly) //.convert())
 		CountyLookupMeta[county.GeoID] = Location{Name: county.Name, FullName: county.Full, State: county.State}
 	}
 }
@@ -211,7 +216,7 @@ func FindCounty(lat, lon float64) (CountyMeta, error) {
 	// NOTE: the polygon coordinates are in form of lon,lat
 	// TODO: unify that to lat,lon
 	pts := Point{lon, lat}
-	idx := finder.Search(pts)
+	idx, dist := finder.Search(pts)
 	if idx < 0 {
 		return CountyMeta{}, ErrNotFound
 	}
@@ -221,6 +226,9 @@ func FindCounty(lat, lon float64) (CountyMeta, error) {
 		State:    location.State,
 		County:   location.Name,
 		Fullname: location.FullName,
+	}
+	if dist > 0 {
+		log.Printf("closest county to %.6f,%6f (%f) is %s, %s", lat, lon, dist, location.Name, location.State)
 	}
 
 	return meta, nil
