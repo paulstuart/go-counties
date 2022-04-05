@@ -69,10 +69,10 @@ type countyRawJSON struct {
 
 // CountyMeta is the principle county meta data
 type CountyMeta struct {
-	GeoID    int
 	County   string
 	Fullname string
 	State    string
+	GeoID    int
 }
 
 var (
@@ -210,6 +210,10 @@ func (c countyRawJSON) Load() (CountyGeo, error) {
 }
 
 var ErrNotFound = errors.New("not found")
+
+func CountyCount() int {
+	return finder.Size()
+}
 
 // FindCounty returns the county associated with the given location
 func FindCounty(lat, lon float64) (CountyMeta, error) {
