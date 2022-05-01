@@ -74,7 +74,7 @@ func TestLookup(t *testing.T) {
 		since := time.Since(now)
 		require.NoError(t, err)
 		assert.Equal(t, look.county, meta.County)
-		t.Logf("Meta: %v, Elapsed: %s", meta, since)
+		t.Logf("LOOKUP Meta: %v, Elapsed: %s", meta, since)
 	}
 }
 
@@ -98,10 +98,13 @@ func TestProdMissing(t *testing.T) {
 	require.NoError(t, err)
 	for _, rec := range recs {
 		pt := parsePair(t, rec)
+		// t.Logf("check pair: %v", pt)
 		meta, err := FindCounty(pt[0], pt[1])
 		if false {
 			assert.NoError(t, err)
 		}
-		t.Logf("%v -- META: %v", pt, meta)
+		if err != nil {
+			t.Logf("MISSING: %v -- META: %v ERR: %v", pt, meta, err)
+		}
 	}
 }
