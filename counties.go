@@ -31,12 +31,12 @@ type Rect = polygons.BBox //[2]Point
 
 // CountyGeo is ready for consumption
 type CountyGeo struct {
-	GeoID int    `json:"geoid"`
 	Name  string `json:"name"`
 	Full  string `json:"fullname"`
 	State string `json:"state"`
-	BBox  Rect   `json:"bbox"`
 	Poly  Points `json:"polygon"`
+	BBox  Rect   `json:"bbox"`
+	GeoID int    `json:"geoid"`
 }
 
 func (cg CountyGeo) Meta() CountyMeta {
@@ -85,7 +85,7 @@ var (
 	// countyLookupBBoxen contains all the bounding boxes for each US county
 	// the bboxen are linked to a GeoID, and then the possible hits
 	// are confirmed in countyLookupPolygons
-	finder polygons.Finder
+	finder polygons.Finder[uint]
 )
 
 /*
@@ -112,6 +112,7 @@ func (pp Points) convert() polygons.PPoints {
 }
 */
 
+/*
 func boundingBox(pp Points) [2]Point {
 	var maxX, maxY, minX, minY float64
 
@@ -135,10 +136,10 @@ func boundingBox(pp Points) [2]Point {
 		{maxX, maxY},
 	}
 }
-
+*/
 // InitCountyLookup prepares data for searching for counties
 func InitCountyLookup(counties []CountyGeo) {
-	finder = *polygons.NewFinder()
+	finder = *polygons.NewFinder[uint]()
 	for _, county := range counties {
 		finder.Add(county.GeoID, county.Poly) //.convert())
 		CountyLookupMeta[county.GeoID] = Location{Name: county.Name, FullName: county.Full, State: county.State}
@@ -205,7 +206,7 @@ func (c countyRawJSON) Load() (CountyGeo, error) {
 		return load, fmt.Errorf("poly geoid: %s -- %w", c.GeoID, err)
 	}
 
-	load.BBox = boundingBox(load.Poly)
+	load.BBox = load.Poly.BBox()
 	return load, nil
 }
 

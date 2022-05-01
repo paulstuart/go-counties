@@ -26,15 +26,15 @@ var (
 )
 
 func initLookups() {
-	initMu.Lock()
-	if !initOk {
+	_initMu.Lock()
+	if !_initOk {
 		err := LoadCachedCountyGeo(CountyGOBFile)
 		if err != nil {
 			panic(err)
 		}
-		initOk = true
+		_initOk = true
 	}
-	initMu.Unlock()
+	_initMu.Unlock()
 }
 
 func exists(filename string) bool {
