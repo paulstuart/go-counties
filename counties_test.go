@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/paulstuart/polygons"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -71,6 +72,87 @@ func TestLookup(t *testing.T) {
 	for _, look := range lookups {
 		now := time.Now()
 		meta, err := FindCounty(look.lat, look.lon)
+		since := time.Since(now)
+		require.NoError(t, err)
+		assert.Equal(t, look.county, meta.County)
+		t.Logf("LOOKUP Meta: %v, Elapsed: %s", meta, since)
+	}
+}
+
+func TestSaveSearcher(t *testing.T) {
+	initLookups()
+	err := SaveSearcher(CountyPolyFile)
+	require.NoError(t, err)
+	err = SaveMeta(CountyMetaFile)
+	require.NoError(t, err)
+}
+
+func TestLoadSearcher(t *testing.T) {
+	//TestSaveSearcher(t)
+	now := time.Now()
+	var searcher polygons.Searcher[uint]
+	err := GobLoad(CountyPolyFile, &searcher)
+	t.Logf("load %d trees, elapsed: %s", searcher.Tree.Len(), time.Since(now))
+	require.NoError(t, err)
+	err = LoadMeta(CountyMetaFile)
+	t.Logf("load total elapsed: %s", time.Since(now))
+	require.NoError(t, err)
+	lookups := []lookupValid{
+		{45.481300, -122.743996, "Washington"},
+		{AlaLat, AlaLon, "Alameda"},
+	}
+	for _, look := range lookups {
+		now := time.Now()
+		//meta, err := SearchCounty(look.lat, look.lon, &searcher)
+		meta, err := SearchCounty(look.lon, look.lat, &searcher)
+		since := time.Since(now)
+		require.NoError(t, err)
+		assert.Equal(t, look.county, meta.County)
+		t.Logf("LOOKUP Meta: %v, Elapsed: %s", meta, since)
+	}
+	for _, look := range lookups {
+		now := time.Now()
+		meta, err := SearchCounty(look.lat, look.lon, &searcher)
+		since := time.Since(now)
+		require.NoError(t, err)
+		assert.Equal(t, look.county, meta.County)
+		t.Logf("LOOKUP Meta: %v, Elapsed: %s", meta, since)
+	}
+}
+
+var (
+	testLookups = []lookupValid{
+		{45.481300, -122.743996, "Washington"},
+		{AlaLat, AlaLon, "Alameda"},
+	}
+)
+
+func TestUseSearcher(t *testing.T) {
+	initLookups()
+	searcher := NewSearcher(finder)
+	//	searcher.Dump()
+	for _, look := range testLookups {
+		now := time.Now()
+		meta, err := SearchCounty(look.lat, look.lon, &searcher)
+		since := time.Since(now)
+		require.NoError(t, err)
+		assert.Equal(t, look.county, meta.County)
+		t.Logf("LOOKUP Meta: %v, Elapsed: %s", meta, since)
+	}
+}
+
+func TestEchoSearcher(t *testing.T) {
+	lookups := []lookupValid{
+		{45.481300, -122.743996, "Washington"},
+		{AlaLat, AlaLon, "Alameda"},
+	}
+	initLookups()
+	searcher := NewSearcher(finder)
+	dupe := polygons.Echo(searcher)
+	//	searcher.Dump()
+	for _, look := range lookups {
+		now := time.Now()
+		meta, err := SearchCounty(look.lat, look.lon, &dupe)
 		since := time.Since(now)
 		require.NoError(t, err)
 		assert.Equal(t, look.county, meta.County)

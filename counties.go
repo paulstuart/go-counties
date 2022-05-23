@@ -7,8 +7,10 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/paulstuart/polygons"
+	"golang.org/x/exp/constraints"
 )
 
 const (
@@ -16,6 +18,8 @@ const (
 	// as generated from github.com/paulstuart/counties
 	CountyJSONFile = "county_poly.json"
 	CountyGOBFile  = "county_geo.gob.gz"
+	CountyPolyFile = "county_poly.gob.gz"
+	CountyMetaFile = "county_meta.gob.gz"
 )
 
 // Point represents Lat,Lon
@@ -112,49 +116,48 @@ func (pp Points) convert() polygons.PPoints {
 }
 */
 
-/*
-func boundingBox(pp Points) [2]Point {
-	var maxX, maxY, minX, minY float64
-
-	for _, pt := range pp {
-		if pt[0] > maxX || maxX == 0.0 {
-			maxX = pt[0]
-		}
-		if pt[1] > maxY || maxY == 0.0 {
-			maxY = pt[1]
-		}
-		if pt[0] < minX || minX == 0.0 {
-			minX = pt[0]
-		}
-		if pt[1] < minY || minY == 0.0 {
-			minY = pt[1]
-		}
-	}
-
-	return [2]Point{
-		{minX, minY},
-		{maxX, maxY},
-	}
-}
-*/
 // InitCountyLookup prepares data for searching for counties
 func InitCountyLookup(counties []CountyGeo) {
 	finder = *polygons.NewFinder[uint]()
 	for _, county := range counties {
-		finder.Add(county.GeoID, county.Poly) //.convert())
+		switch county.State {
+		case "AS", "GU", "VI", "MP":
+			continue // skip American Somoa, Guam, Virgin Islands, Northern Mariana Islands
+		}
+		finder.Add(county.GeoID, county.Poly)
 		CountyLookupMeta[county.GeoID] = Location{Name: county.Name, FullName: county.Full, State: county.State}
 	}
+}
+
+func SaveMeta(filename string) error {
+	return GobDump(filename, CountyLookupMeta)
+}
+
+func LoadMeta(filename string) error {
+	return GobLoad(filename, &CountyLookupMeta)
+}
+
+func NewSearcher[T constraints.Unsigned](f polygons.Finder[T]) polygons.Searcher[T] {
+	return polygons.NewSearcher(&f)
+}
+
+func SaveSearcher(filename string) error {
+	_initLookups()
+	s := NewSearcher(finder)
+	return GobDump(filename, s)
 }
 
 // LoadCachedCountyGeo uses GOB encoded geodata
 // to build county lookup functions
 func LoadCachedCountyGeo(filename string) error {
+	now := time.Now()
 	var counties []CountyGeo
 	err := GobLoad(filename, &counties)
 	if err != nil {
 		return err
 	}
 	InitCountyLookup(counties)
+	log.Printf("elapsed: %s", time.Since(now))
 	return nil
 }
 
@@ -223,6 +226,31 @@ func FindCounty(lat, lon float64) (CountyMeta, error) {
 	pts := Point{lon, lat}
 	idx, dist := finder.Search(pts)
 	if idx < 0 {
+		return CountyMeta{}, ErrNotFound
+	}
+	location := CountyLookupMeta[idx]
+	meta := CountyMeta{
+		GeoID:    idx,
+		State:    location.State,
+		County:   location.Name,
+		Fullname: location.FullName,
+	}
+	if dist > 0 {
+		log.Printf("closest county to %.6f,%6f (%f) is %s, %s", lat, lon, dist, location.Name, location.State)
+	}
+
+	return meta, nil
+}
+
+// SearchCounty returns the county associated with the given location
+func SearchCounty(lat, lon float64, s *polygons.Searcher[uint]) (CountyMeta, error) {
+	// NOTE: the polygon coordinates are in form of lon,lat
+	// TODO: unify that to lat,lon
+	pts := Point{lon, lat}
+	fmt.Printf("SEARCH: %v\n", pts)
+	idx, dist := s.Search(pts)
+	if idx < 0 {
+		fmt.Printf("IDX: %d", idx)
 		return CountyMeta{}, ErrNotFound
 	}
 	location := CountyLookupMeta[idx]
