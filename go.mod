@@ -1,6 +1,6 @@
 module github.com/paulstuart/go-counties
 
-go 1.17
+go 1.18
 
 require (
 	github.com/paulstuart/polygons v0.0.0-20220311073430-12bb66e7d07e
