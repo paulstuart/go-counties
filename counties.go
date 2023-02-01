@@ -19,11 +19,11 @@ const (
 )
 
 // Point represents Lat,Lon
-//type Point [2]float64
+// type Point [2]float64
 type Point = polygons.Pair
 
 // Points is a collection of geographic locations
-//type Points []Point
+// type Points []Point
 type Points = polygons.PPoints
 
 // Rect is the min and max verticies of a bounding box
@@ -85,7 +85,7 @@ var (
 	// countyLookupBBoxen contains all the bounding boxes for each US county
 	// the bboxen are linked to a GeoID, and then the possible hits
 	// are confirmed in countyLookupPolygons
-	finder polygons.Finder
+	finder polygons.Finder[uint]
 )
 
 /*
@@ -138,7 +138,7 @@ func boundingBox(pp Points) [2]Point {
 
 // InitCountyLookup prepares data for searching for counties
 func InitCountyLookup(counties []CountyGeo) {
-	finder = *polygons.NewFinder()
+	finder = *polygons.NewFinder[uint]()
 	for _, county := range counties {
 		finder.Add(county.GeoID, county.Poly) //.convert())
 		CountyLookupMeta[county.GeoID] = Location{Name: county.Name, FullName: county.Full, State: county.State}
