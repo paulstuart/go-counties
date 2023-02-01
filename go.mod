@@ -15,7 +15,6 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/tidwall/geoindex v1.7.0 // indirect
 	github.com/tidwall/mmap v0.3.0 // indirect
-	github.com/tidwall/rtree v1.4.1 // indirect
 	golang.org/x/exp v0.0.0-20230131160201-f062dba9d201 // indirect
 	golang.org/x/sys v0.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.0-20200313102051-9f266ea9e77c // indirect
