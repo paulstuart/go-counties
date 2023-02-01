@@ -3,7 +3,7 @@ module github.com/paulstuart/go-counties
 go 1.18
 
 require (
-	github.com/paulstuart/polygons v0.0.0-20230130032244-622359c3d970
+	github.com/paulstuart/polygons v0.0.0-20230201015427-38d0c03d465d
 	github.com/stretchr/testify v1.7.0
 )
 
